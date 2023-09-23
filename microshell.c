@@ -59,7 +59,6 @@ t_cmds *new_cmd(char *cmd)
 	new->preview=NULL;
 	new->new = NULL;
 	new->argc = 1;
-	new->pid = 0;
 	if (strncmp(cmd, "cd", 2) == 0)
 		new->is_cd = true;
 	else
@@ -92,8 +91,7 @@ void close_pipe(int pp[2])
 
 char **create_argv(int argc, char **argv, char *new_arg)
 {
-	char **new;
-	new = malloc(sizeof(char *) * (argc + 2));
+	char **new = malloc(sizeof(char *) * (argc + 2));
 	int i = 0;
 	while (argv[i])
 	{
@@ -102,7 +100,7 @@ char **create_argv(int argc, char **argv, char *new_arg)
 	}
 	new[i] = new_arg;
 	new[i + 1] = NULL;
-	//free(argv);
+	free(argv);
 
 	return (new);
 }
@@ -148,38 +146,25 @@ t_cmds *create_cmds(char **argv)
 
 int create_wait_pid(t_cmds *cmd)
 {
-	t_cmds *tmp;
-	int status;
 	while (cmd)
 	{
-		tmp = cmd;
-		while (cmd)
-		{
-			waitpid(cmd->pid, &status, 0);
-			cmd = cmd->piped;
-		}
-		cmd = tmp->new;
+		waitpid(cmd->pid, NULL, 0);
+		cmd = cmd->piped;
 	}
-	return (WIFEXITED(status));
+	return (0);
 }
 
 int connect(t_cmds *cmds)
 {
 	if (!cmds->preview && !cmds->piped)
-	{
 		return (0);
-	}
 	if (!cmds->preview) {
 		dup2(cmds->pipe[1], 1);
 		close_pipe(cmds->pipe);
-	} else if (!cmds->piped){
+	}
+	if (!cmds->piped){
 		dup2(cmds->preview->pipe[0], 0);
 		close_pipe(cmds->preview->pipe);
-	} else if (cmds->preview) {
-		dup2(cmds->preview->pipe[0],0);
-		dup2(cmds->pipe[1], 1);
-		close_pipe(cmds->preview->pipe);
-		close_pipe(cmds->pipe);
 	}
 	return (0);
 }
@@ -221,25 +206,6 @@ int exec_new(t_cmds *cmds, char **envp)
 	return (0);
 }
 
-void free_cmds(t_cmds *cmd)
-{
-	t_cmds *tmp;
-	t_cmds *tmp2;
-	while (cmd)
-	{
-		tmp = cmd;
-		while (cmd)
-		{
-			tmp2 = cmd;
-			free(cmd->argv);
-			cmd = cmd->piped;
-			free(tmp2);
-		}
-		cmd = tmp->new;
-		free(tmp);
-	}
-}
-
 int main(int argc, char **argv, char **envp)
 {
 	if (argc < 2)
@@ -248,7 +214,6 @@ int main(int argc, char **argv, char **envp)
 	t_cmds *cmds;
 	cmds = create_cmds(argv);
 	exec_new(cmds, envp);
-	free(cmds);
 
 	return (0);
 }
